@@ -1,0 +1,694 @@
+---
+title: "Danone_manuscript_final"
+author: "Shriram Patel"
+date: "29/06/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+# Manuscript Figure-2
+```{r, out.height = "700px", out.width = "1000px", dpi=800}
+# Load libraries
+options(warn = -1)
+options(dplyr.summarise.inform = FALSE)
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(tidyverse))
+
+
+                        ##########################################################
+                        ################ Hp pylori results #######################
+                        ##########################################################
+# Set path
+path <- "Raw_data"
+
+################ Hp pylori BBMAP results plot % abundance ##################
+# BBMAP based mapping
+df <- readRDS(file = paste0(path, "Mapping/BBMAP_mapping.RDS"))
+df$Sample <- paste("sample_", df$Sample, sep = "")
+
+# Load metadata
+Meta <- readRDS(file = paste0(path, "H_pylori_Metadata.RDS"))
+row.names(Meta) <- paste("sample_", row.names(Meta), sep = "")
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = df$Sample %in% row.names(Meta))
+
+# Subset Metadata by Samples (because some more sample failed)
+Meta <- subset.data.frame(x = Meta, subset = row.names(Meta) %in% unique(df$Sample))
+
+# Select important columns only
+df <- df %>% filter(var %in% "UniqueMapped")
+
+# Select desired column
+df$UniqueMapped <- df$value
+df$value <- NULL
+
+# Re-shape the data
+df <- reshape2::melt(data = df, id.vars = c("Treatment", "Timepoint", "Subject", "Sample", "Strain"), measure.vars = c("UniqueMapped"))
+df$fc_log <- log10(df$value + 1)
+
+# Color code
+myCol <- c("#2b5fbf", "#96ffe6")
+
+
+# PLot it
+p <- df %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+  do(plots=ggplot(data = ., aes(x = Timepoint, y = fc_log)) + 
+       geom_point(mapping = aes(fill = Treatment), color = "black", pch = 21, stroke = 0.3, size=0.7, alpha= 0.3, position = position_jitterdodge(dodge.width = 0.75), show.legend = FALSE) +
+       geom_boxplot(aes(fill = Treatment), color = "black", alpha= 1, width= 0.7, outlier.colour = NA, show.legend = FALSE) + 
+       scale_color_manual("Treatment", values = myCol) +
+       scale_fill_manual("Treatment", values = myCol) +
+       theme_bw() +
+       coord_cartesian(ylim = c(0, NA)) +
+       scale_y_continuous(labels = function(x) sprintf("%.1f", x)) +
+       theme(axis.text.x = element_text(size = 5, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 5, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 5, face = "bold", family = "sans", colour = "black")) +
+       xlab("Visits") + 
+       ylab("Log % unique mapped read abundance") +
+       ggtitle(.$Strain))
+
+# Arrange figures in one plot
+W <- ggpubr::ggarrange(plotlist = p$plots, nrow = 1)
+#svg(width = 13, height = 2.3)
+
+
+
+
+
+################ Hp pylori BBMAP results plot Log flow-cyto-scaled abundance ##################
+# BBMAP based mapping
+df <- readRDS(file = paste0(path, "Mapping/BBMAP_mapping.RDS"))
+df$Sample <- paste("sample_", df$Sample, sep = "")
+
+# Load metadata
+Meta <- readRDS(file = paste0(path, "H_pylori_Metadata.RDS"))
+row.names(Meta) <- paste("sample_", row.names(Meta), sep = "")
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = df$Sample %in% row.names(Meta))
+
+# Subset Metadata by Samples (because some more sample failed)
+Meta <- subset.data.frame(x = Meta, subset = row.names(Meta) %in% unique(df$Sample))
+
+# Add corresponding Flow-cyto-cell data
+df$flow_cyt <- Meta$flow_cyt[match(df$Sample, row.names(Meta))]
+
+# Select important columns only
+df <- df %>% filter(var %in% "UniqueMapped")
+
+# Select desired column
+df$UniqueMapped <- df$value
+df$value <- NULL
+
+# scale by Flow-cyto-cell data
+df$fc_tot <- df$UniqueMapped*df$flow_cyt
+df$fc_log <- log10(df$fc_tot + 1)
+
+# Re-shape the data
+df <- reshape2::melt(data = df, id.vars = c("Treatment", "Timepoint", "Subject", "Sample", "Strain"), measure.vars = c("fc_log", "fc_tot", "UniqueMapped"))
+
+# Color code
+myCol <- c("#2b5fbf", "#96ffe6")
+
+# Plot using Flow-cyto-scaled Log abundance
+q <- df %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  filter(variable %in% "fc_log") %>% 
+  filter(value > 0) %>%
+  group_by(Strain) %>%
+  do(plots=ggplot(data = ., aes(x = Timepoint, y = value)) + 
+       geom_point(mapping = aes(fill = Treatment), color = "black", pch = 21, stroke = 0.3, size=0.7, alpha= 0.3, position = position_jitterdodge(dodge.width = 0.75), show.legend = FALSE) +
+       geom_boxplot(aes(fill = Treatment), color = "black", alpha= 1, width= 0.7, outlier.colour = NA, show.legend = FALSE) + 
+       scale_color_manual("Treatment", values = myCol) +
+       scale_fill_manual("Treatment", values = myCol) +
+       theme_bw() +
+       coord_cartesian(ylim = c(NA, 11)) +
+       theme(axis.text.x = element_text(size = 5, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 5, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 5, face = "bold", family = "sans", colour = "black")) +
+       xlab("Visits") + 
+       ylab("Log unique mapped read abundance") +
+       ggtitle(.$Strain))
+
+# Arrange figures in one plot
+X <- ggpubr::ggarrange(plotlist = q$plots, nrow = 1)
+#svg(width = 8, height = 6)
+
+
+
+############################ SMEG replication rate #############################
+# Load Metadata
+Meta <- readRDS(file = paste0(path, "H_pylori_Metadata.RDS"))
+row.names(Meta) <- paste("sample_", row.names(Meta), sep = "")
+
+
+# Compile data
+##### Streptococcus thermophilus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/S_thermophilus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster4", "cluster5", "cluster6"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.1 <- df %>% mutate(Strain = 
+                              ifelse(grepl("cluster4", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2773",
+                                     ifelse(grepl("cluster5", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2778", "S. thermophilus CNCMI-2835")))
+
+
+
+
+##### Lactobacillus paracasei #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_paracasei.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster1", "cluster3"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.2 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. paracasei CNCMI-1518", "L. paracasei CNCMI-3689"))
+
+
+
+
+##### Lactobacillus rhamnosus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_rhamnosus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster1"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.3 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. rhamnosus CNCMI-3690", "NA"))
+
+
+
+
+##### Lactobacillus bulgaricus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_bulgaricus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest (Cluster-6 here)
+df <- subset.data.frame(x = df, select = c("cluster1"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.4 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. bulgaricus CNCMI-2787", "NA"))
+
+
+
+
+# Combine the tables
+df.final <- bind_rows(df.final.1, df.final.2, df.final.3, df.final.4)
+
+# Mutate the names
+df.final <- df.final %>% mutate(Tp = ifelse(grepl("2.Base", Timepoint), "D0", 
+                                       ifelse(grepl("4.Eval", Timepoint), "D14",
+                                              ifelse(grepl("6.Eval", Timepoint), "D28","D42"))))
+
+# Set levels of Strains
+df.final$Strain <- factor(x = df.final$Strain, levels = unique(df.final$Strain))
+
+# Color code
+myCol <- c("#2b5fbf", "#96ffe6")
+
+
+
+# Plot the data
+r <- df.final %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  group_by(Strain) %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  do(plots=ggplot(data = ., aes(x = Tp, y = value)) + 
+       geom_point(mapping = aes(fill = Group), color = "black", pch = 21, stroke = 0.3, size=0.7, alpha= 0.3, position = position_jitterdodge(dodge.width = 0.75), show.legend = FALSE) +
+       geom_boxplot(aes(fill = Group), color = "black", alpha= 1, width= 0.7, outlier.colour = NA, show.legend = FALSE) + 
+       scale_color_manual("Treatment", values = myCol) +
+       scale_fill_manual("Treatment", values = myCol) +
+       scale_y_continuous(labels = function(x) sprintf("%.1f", x)) +
+       theme_bw() +
+       theme(axis.text.x = element_text(size = 5, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 5, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 5, face = "bold", family = "sans", colour = "black")) +
+       xlab("Visits") + 
+       ylab("SMEG replication rate") +
+       ggtitle(.$Strain))
+
+# Arrange figures in one plot
+Y <- ggpubr::ggarrange(plotlist = r$plots, nrow = 1)
+
+# Summarize the data for plotting
+df.summary <- df.final %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Group, Tp, Strain) %>%
+  summarise(
+    min=min(value),
+    max=max(value),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(value > 0),
+    IQR = IQR(value, na.rm = TRUE))
+
+# Calculate % subject carrying product strain
+df.summary$percent <- (df.summary$No_Not_0*100)/df.summary$Total_No
+
+     
+# Plot the data
+s <- df.summary %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  group_by(Strain) %>%
+  do(plots=ggplot(data = ., aes(x = Tp, y = percent)) +
+       geom_bar(aes(fill = Group), color = "black", stat = "identity", position = position_dodge(), show.legend = FALSE) +
+       scale_color_manual("Treatment", values = myCol) +
+       scale_fill_manual("Treatment", values = myCol) +
+       coord_cartesian(ylim = c(0, 90)) +
+       scale_y_continuous(labels = function(x) paste0(x, "%"),limits = c(0, 100), breaks = c(30, 60, 90)) +
+       theme_bw() +
+       theme(axis.text.x = element_text(size = 5, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 5, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 5, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 5, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 5, face = "bold", family = "sans", colour = "black")) +
+       xlab("Visits") + 
+       ylab("% of subjects with product strains") +
+       ggtitle(.$Strain))
+
+# Arrange figures in one plot
+Z <- ggpubr::ggarrange(plotlist = s$plots, nrow = 1)
+
+# Combine both Figures
+A <- ggpubr::ggarrange(W, X, Y, Z, nrow = 4, labels = "AUTO")
+#svg(width = 13, height = 7)
+A
+
+```
+
+
+
+
+
+
+
+
+# Manuscript Figure-2:- Statistics and Summary
+```{r, out.height = "700px", out.width = "1000px", dpi=800}
+# Load libraries
+options(warn = -1)
+options(dplyr.summarise.inform = FALSE)
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(ggpubr))
+suppressPackageStartupMessages(library(tidyverse))
+
+
+
+                        ##########################################################
+                        ################ Hp pylori results #######################
+                        ##########################################################
+# Set path
+path <- "Raw_data"
+
+################ Hp pylori BBMAP results plot percent and flow-cyto scaled abundance ##################
+# BBMAP based mapping
+df <- readRDS(file = paste0(path, "Mapping/BBMAP_mapping.RDS"))
+df$Sample <- paste("sample_", df$Sample, sep = "")
+
+# Load metadata
+Meta <- readRDS(file = paste0(path, "H_pylori_Metadata.RDS"))
+row.names(Meta) <- paste("sample_", row.names(Meta), sep = "")
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = df$Sample %in% row.names(Meta))
+
+# Subset Metadata by Samples (because some more sample failed)
+Meta <- subset.data.frame(x = Meta, subset = row.names(Meta) %in% unique(df$Sample))
+
+# Select important columns only
+df <- df %>% filter(var %in% "UniqueMapped")
+
+# Select desired column
+df$UniqueMapped <- df$value
+df$value <- NULL
+
+# Re-shape the data
+df <- reshape2::melt(data = df, id.vars = c("Treatment", "Timepoint", "Subject", "Sample", "Strain"), measure.vars = c("UniqueMapped"))
+
+# Add corresponding Flow-cyto-cell data
+df$flow_cyt <- Meta$flow_cyt[match(df$Sample, row.names(Meta))]
+
+# scale by Flow-cyto-cell data
+df$fc_log <- log10((df$value*df$flow_cyt) + 1)
+
+
+#### Get summary of percent mapped and FC scaled abundances
+df.summary1 <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Treatment, Timepoint, Strain) %>%
+  summarise(
+    min=min(value),
+    max=max(value),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(value > 0),
+    IQR = IQR(value, na.rm = TRUE))
+
+df.summary2 <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Treatment, Timepoint, Strain) %>%
+  summarise(
+    min=min(fc_log),
+    max=max(fc_log),
+    mean = mean(fc_log, na.rm = TRUE),
+    median = median(fc_log, na.rm = TRUE),
+    sd = sd(fc_log, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(fc_log > 0),
+    IQR = IQR(fc_log, na.rm = TRUE))
+
+
+### Get Statistical results
+stats.percent.grp <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = value ~ Treatment, group.by = "Timepoint", data = ., method = "wilcox.test"))
+stats.percent.grp
+
+stats.percent.tp <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = value ~ Timepoint, group.by = "Treatment", data = ., method = "wilcox.test"))
+stats.percent.tp
+
+stats.fc_log.grp <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = fc_log ~ Treatment, group.by = "Timepoint", data = ., method = "wilcox.test"))
+stats.fc_log.grp
+
+stats.fc_log.tp <- df %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = fc_log ~ Timepoint, group.by = "Treatment", data = ., method = "wilcox.test"))
+stats.fc_log.tp
+
+
+
+
+
+############################ SMEG replication rate #############################
+# Load Metadata
+Meta <- readRDS(file = paste0(path, "H_pylori_Metadata.RDS"))
+row.names(Meta) <- paste("sample_", row.names(Meta), sep = "")
+
+
+# Compile data
+##### Streptococcus thermophilus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/S_thermophilus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster4", "cluster5", "cluster6"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.1 <- df %>% mutate(Strain = 
+                              ifelse(grepl("cluster4", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2773",
+                                     ifelse(grepl("cluster5", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2778", "S. thermophilus CNCMI-2835")))
+
+
+
+
+##### Lactobacillus paracasei #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_paracasei.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster1", "cluster3"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.2 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. paracasei CNCMI-1518", "L. paracasei CNCMI-3689"))
+
+
+
+
+##### Lactobacillus rhamnosus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_rhamnosus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest
+df <- subset.data.frame(x = df, select = c("cluster1"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.3 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. rhamnosus CNCMI-3690", "NA"))
+
+
+
+
+##### Lactobacillus bulgaricus #####
+df <- readRDS(file = paste0(path, "SMEG/H_pylori/L_bulgaricus.RDS"))
+
+# Subset by the Metadata
+df <- subset.data.frame(x = df, subset = row.names(df) %in% row.names(Meta))
+
+# Arrange by the order of Meta
+df <- df[match(row.names(Meta), row.names(df)), ]
+
+# Keep only Cluster of interest (Cluster-6 here)
+df <- subset.data.frame(x = df, select = c("cluster1"))
+
+# Add Metadata
+df$Group <- Meta$treat
+df$Timepoint <- Meta$visit
+df$Subject <- Meta$subject
+df$Sample <- Meta$sample
+
+# Reshape the data
+df <- melt(data = df, id.vars = c("Group", "Timepoint", "Subject", "Sample"), variable.name = "Cluster")
+
+# Add it to Final table
+df.final.4 <- df %>% mutate(Strain = ifelse(grepl("cluster1", Cluster, ignore.case = TRUE), "L. bulgaricus CNCMI-2787", "NA"))
+
+
+# Combine the tables
+df.final <- bind_rows(df.final.1, df.final.2, df.final.3, df.final.4)
+
+# Mutate the names
+df.final <- df.final %>% mutate(Tp = ifelse(grepl("2.Base", Timepoint), "D0", 
+                                       ifelse(grepl("4.Eval", Timepoint), "D14",
+                                              ifelse(grepl("6.Eval", Timepoint), "D28","D42"))))
+
+
+#### Get summary of SMEG
+df.summary.3 <- df.final %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Group, Tp, Strain) %>%
+  summarise(
+    min=min(value),
+    max=max(value),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(value > 0),
+    IQR = IQR(value, na.rm = TRUE))
+df.summary.3
+
+
+### Get Statistical SMEG
+stats.smeg.grp <- df.final %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = value ~ Group, group.by = "Tp", data = ., method = "wilcox.test"))
+stats.smeg.grp
+
+stats.smeg.tp <- df.final %>%
+  filter(!Subject %in% c("AAD-CORK-0414", "AAD-CORK-0923")) %>%
+  group_by(Strain) %>%
+   do(ggpubr::compare_means(formula = value ~ Tp, group.by = "Group", data = ., method = "wilcox.test"))
+stats.smeg.tp
+
+
+
+
+                      ##########################################################
+                      ################ PRJEB35769 results ######################
+                      ##########################################################
+
+################ Supplement Figure-2 ################
+# Load Metadata
+Metadata <- readRDS(file = paste0(path, "PRJEB35769_Metadata.RDS"))
+
+# Load all data
+tbl <- readRDS(paste0(path, "SMEG/PRJEB35769/S_thermophilus.RDS")) %>% mutate(Species = "S_thermophilus")
+
+# Keep only Cluster of interest
+tbl <- tbl %>% filter(Cluster %in% c("cluster4", "cluster5", "cluster6"))
+
+# Add metadata information
+tbl$Subject <- Metadata$Subject
+tbl$Group <- Metadata$Group
+tbl$Timepoint <- Metadata$Timepoint
+tbl$sample <- Metadata$SRAID
+
+
+# Mutate the names
+df.final <- tbl %>% mutate(Strain = ifelse(grepl("cluster4", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2773",
+                                            ifelse(grepl("cluster5", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2778", "S. thermophilus CNCMI-2835")))
+
+# Mutate the names
+df.final <- df.final %>% mutate(Tp = ifelse(grepl("V2", Timepoint), "D0", 
+                                       ifelse(grepl("V4", Timepoint), "D28", "D56")))
+
+#### Get summary of SMEG
+df.summary.4 <- df.final %>%
+  group_by(Group, Tp, Strain) %>%
+  summarise(
+    min=min(value),
+    max=max(value),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(value > 0),
+    IQR = IQR(value, na.rm = TRUE))
+df.summary.4
+
+
+```
+

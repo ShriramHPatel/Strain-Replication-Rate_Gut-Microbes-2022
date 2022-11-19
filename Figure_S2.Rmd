@@ -1,0 +1,134 @@
+---
+title: "Danone_manuscript_final"
+author: "Shriram Patel"
+date: "29/06/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+# Manuscript Supplement Figure-S2
+```{r, out.height = "500px", out.width = "500px", dpi=500}
+# Load libraries
+options(warn = -1)
+options(dplyr.summarise.inform = FALSE)
+suppressPackageStartupMessages(library(reshape2))
+suppressPackageStartupMessages(library(tidyverse))
+
+
+# Set path
+path <- "Raw_data"
+
+                      ##########################################################
+                      ################ PRJEB35769 results ######################
+                      ##########################################################
+
+################ Supplement Figure-2 ################
+# Load Metadata
+Metadata <- readRDS(file = paste0(path, "PRJEB35769_Metadata.RDS"))
+
+# Load all data
+tbl <- readRDS(paste0(path, "SMEG/PRJEB35769/S_thermophilus.RDS")) %>% mutate(Species = "S_thermophilus")
+
+# Keep only Cluster of interest
+tbl <- tbl %>% filter(Cluster %in% c("cluster4", "cluster5", "cluster6"))
+
+# Add metadata information
+tbl$Subject <- Metadata$Subject
+tbl$Group <- Metadata$Group
+tbl$Timepoint <- Metadata$Timepoint
+tbl$sample <- Metadata$SRAID
+
+
+# Mutate the names
+df.final <- tbl %>% mutate(Strain = ifelse(grepl("cluster4", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2773",
+                                            ifelse(grepl("cluster5", Cluster, ignore.case = TRUE), "S. thermophilus CNCMI-2778", "S. thermophilus CNCMI-2835")))
+
+# Mutate the names
+df.final <- df.final %>% mutate(Tp = ifelse(grepl("V2", Timepoint), "D0", 
+                                       ifelse(grepl("V4", Timepoint), "D28", "D56")))
+# Relevel the data
+df.final$Tp <- factor(x = df.final$Tp, levels = c("D0", "D28", "D56"))
+df.final$Group <- factor(x = df.final$Group, levels = c("CP.3", "Test.3"))
+
+# Color code
+myCol <- c("#2b5fbf", "#96ffe6")
+
+# PLot it
+p <- df.final %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  ggplot(data = ., aes(x = Tp, y = value)) + 
+  geom_point(mapping = aes(fill = Group), color = "black", pch = 21, stroke = 0.3, size=1, alpha= 0.3, position = position_jitterdodge(dodge.width = 0.75), show.legend = FALSE) +
+  geom_boxplot(aes(fill = Group), color = "black", alpha= 1, width= 0.7, outlier.colour = NA, show.legend = FALSE) + 
+  scale_color_manual("Treatment", values = myCol) +
+  scale_fill_manual("Treatment", values = myCol) +
+  facet_wrap(.~Strain, scales = "free_y") +
+  scale_y_continuous(labels = function(x) sprintf("%.1f", x)) +
+  theme_bw() +
+       theme(axis.text.x = element_text(size = 7, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 7, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 7, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 7, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 7, face = "bold", family = "sans", colour = "black")) +
+  xlab("Visits") + 
+  ylab("SMEG replication rate")
+
+
+# Summarize the data for plotting
+df.summary <- df.final %>%
+  group_by(Group, Tp, Strain) %>%
+  summarise(
+    min=min(value),
+    max=max(value),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    Total_No = n(),
+    No_Not_0 = sum(value > 0),
+    IQR = IQR(value, na.rm = TRUE))
+
+# Calculate % subject carrying product strain
+df.summary$percent <- (df.summary$No_Not_0*100)/df.summary$Total_No
+
+# Plot the data
+q <- df.summary %>%
+  mutate(Strain = str_wrap(Strain, width = 20)) %>%
+  ggplot(data = ., aes(x = Tp, y = percent)) + 
+  geom_bar(aes(fill = Group), color = "black", stat = "identity", position = position_dodge(), show.legend = FALSE) +
+  scale_color_manual("Treatment", values = myCol) +
+  scale_fill_manual("Treatment", values = myCol) +
+  facet_wrap(.~Strain, scales = "free_y") +
+  theme_bw() +
+  scale_y_continuous(labels = function(x) paste0(x, "%"),limits = c(0, 100)) +
+       theme(axis.text.x = element_text(size = 7, face  = "plain", angle = 30, vjust=0.5, family = "sans", colour = "black"), 
+             axis.text.y = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             axis.title.x.bottom = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             axis.title.y.left = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             strip.background = element_blank(), panel.border = element_blank(), 
+             strip.text = element_text(size = 7, face = "plain", family = "sans", colour = "black"),
+             text = element_text(size = 7, face = "bold", family = "sans", colour = "black"), 
+             plot.title = element_text(size = 7, face = "plain", family = "sans", hjust = 0.5),
+             plot.subtitle = element_text(size = 7, face = "plain", family = "sans", hjust = 0.5),
+             legend.key.size = unit(0.45,"cm"),
+             legend.text = element_text(size = 7, face = "bold", family = "sans", colour = "black")) +
+  xlab("Visits") + 
+  ylab("% of subjects with product strains")
+
+# Combine the figures
+B <- ggpubr::ggarrange(p, q, nrow = 2, labels = "AUTO")
+#svg(width = 7, height = 6)
+B
+```
+
+
+
+
+
